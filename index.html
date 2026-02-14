@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>US Data Center Projects — Market Tracker</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<!-- Leaflet MarkerCluster CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-primary: #0f1117;
+    --bg-secondary: #1a1d27;
+    --bg-card: #22263280;
+    --border: #2d3244;
+    --text-primary: #e8eaf0;
+    --text-secondary: #8b90a5;
+    --text-muted: #5a5f75;
+    --accent: #4f8cff;
+    --accent-glow: #4f8cff33;
+
+    --status-feasibility: #f59e0b;
+    --status-construction: #3b82f6;
+    --status-completed: #10b981;
+    --status-dead: #ef4444;
+    --status-unknown: #6b7280;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ─────────────────────── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    z-index: 1000;
+    flex-shrink: 0;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-mark {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--accent), #7c3aed);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+
+  .header-title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+
+  .header-title span {
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-left: 8px;
+    font-size: 13px;
+  }
+
+  .header-stats {
+    display: flex;
+    gap: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .stat-label {
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 10px;
+  }
+
+  .stat-value {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  /* ── Main Layout ────────────────── */
+  .main-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ────────────────────── */
+  .sidebar {
+    width: 320px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    z-index: 900;
+  }
+
+  .sidebar-section {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-section-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    font-weight: 700;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+
+  .search-input::placeholder { color: var(--text-muted); }
+
+  /* ── Filter Chips ───────────────── */
+  .filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .filter-chip {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .filter-chip:hover { border-color: var(--text-secondary); }
+
+  .filter-chip.active {
+    border-color: transparent;
+    color: #fff;
+  }
+
+  .filter-chip .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .filter-chip[data-status="Feasibility / Pre-Dev"] .dot,
+  .filter-chip[data-status="Feasibility / Pre-Dev"].active { background: var(--status-feasibility); border-color: var(--status-feasibility); }
+  .filter-chip[data-status="Under Construction"] .dot,
+  .filter-chip[data-status="Under Construction"].active { background: var(--status-construction); border-color: var(--status-construction); }
+  .filter-chip[data-status="Completed"] .dot,
+  .filter-chip[data-status="Completed"].active { background: var(--status-completed); border-color: var(--status-completed); }
+  .filter-chip[data-status="Dead"] .dot,
+  .filter-chip[data-status="Dead"].active { background: var(--status-dead); border-color: var(--status-dead); }
+
+  /* ── Project List ───────────────── */
+  .project-list-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+  }
+
+  .project-list-container::-webkit-scrollbar { width: 4px; }
+  .project-list-container::-webkit-scrollbar-track { background: transparent; }
+  .project-list-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .project-card {
+    padding: 12px 14px;
+    margin-bottom: 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .project-card:hover {
+    border-color: var(--accent);
+    background: #22263260;
+  }
+
+  .project-card.highlighted {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+
+  .project-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 4px;
+  }
+
+  .project-card-developer {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.3;
+    flex: 1;
+  }
+
+  .project-card-mw {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+    margin-left: 8px;
+  }
+
+  .project-card-location {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+
+  .project-card-status {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .status-feasibility { background: #f59e0b22; color: var(--status-feasibility); }
+  .status-construction { background: #3b82f622; color: var(--status-construction); }
+  .status-completed { background: #10b98122; color: var(--status-completed); }
+  .status-dead { background: #ef444422; color: var(--status-dead); }
+  .status-unknown { background: #6b728022; color: var(--status-unknown); }
+
+  .project-count {
+    padding: 10px 20px;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  /* ── Map ─────────────────────────── */
+  #map {
+    flex: 1;
+    background: var(--bg-primary);
+  }
+
+  /* Dark map tiles */
+  .leaflet-tile-pane { filter: brightness(0.85) contrast(1.1) saturate(0.8); }
+  .leaflet-control-zoom a {
+    background: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border) !important;
+  }
+
+  /* ── Custom Markers ─────────────── */
+  .custom-marker {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    transition: transform 0.15s;
+  }
+  .custom-marker:hover { transform: scale(1.3); }
+  .custom-marker.feasibility { background: var(--status-feasibility); }
+  .custom-marker.construction { background: var(--status-construction); }
+  .custom-marker.completed { background: var(--status-completed); }
+  .custom-marker.dead { background: var(--status-dead); }
+  .custom-marker.unknown { background: var(--status-unknown); }
+
+  /* Large markers for high MW */
+  .custom-marker.large {
+    width: 20px;
+    height: 20px;
+    border-width: 2.5px;
+  }
+
+  /* ── Popup ──────────────────────── */
+  .leaflet-popup-content-wrapper {
+    background: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+    max-width: 340px !important;
+  }
+  .leaflet-popup-tip { background: var(--bg-secondary) !important; }
+  .leaflet-popup-close-button { color: var(--text-muted) !important; font-size: 18px !important; }
+
+  .popup-content { padding: 4px 0; }
+  .popup-developer { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+  .popup-project-name { font-size: 12px; color: var(--accent); margin-bottom: 6px; }
+  .popup-location { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
+
+  .popup-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 16px;
+    margin-bottom: 10px;
+  }
+
+  .popup-field-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+    font-weight: 700;
+  }
+
+  .popup-field-value {
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 1px;
+  }
+
+  .popup-note {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+
+  .popup-source {
+    margin-top: 8px;
+    font-size: 10px;
+  }
+
+  .popup-source a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .popup-source a:hover { text-decoration: underline; }
+
+  /* ── Cluster ────────────────────── */
+  .marker-cluster-small,
+  .marker-cluster-medium,
+  .marker-cluster-large {
+    background: var(--accent-glow) !important;
+  }
+  .marker-cluster-small div,
+  .marker-cluster-medium div,
+  .marker-cluster-large div {
+    background: var(--accent) !important;
+    color: #fff !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+  }
+
+  /* ── Loading ────────────────────── */
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    transition: opacity 0.4s;
+  }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .loading-spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 13px; color: var(--text-muted); }
+
+  /* ── Legend ──────────────────────── */
+  .legend {
+    position: absolute;
+    bottom: 28px;
+    right: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    z-index: 800;
+    font-size: 11px;
+  }
+
+  .legend-title {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    color: var(--text-secondary);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.3);
+    flex-shrink: 0;
+  }
+
+  /* ── Responsive ─────────────────── */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .header-stats { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Loading project data...</div>
+</div>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo-mark">DC</div>
+    <div class="header-title">
+      US Data Center Projects
+      <span>Market Tracker</span>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="stat">
+      <span class="stat-label">Projects</span>
+      <span class="stat-value" id="stat-total">—</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Total MW</span>
+      <span class="stat-value" id="stat-mw">—</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">States</span>
+      <span class="stat-value" id="stat-states">—</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Last Sync</span>
+      <span class="stat-value" id="stat-sync">—</span>
+    </div>
+  </div>
+</div>
+
+<div class="main-container">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Search</div>
+      <input type="text" class="search-input" id="search" placeholder="Developer, city, state, project..." />
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Status</div>
+      <div class="filter-group" id="status-filters">
+        <div class="filter-chip active" data-status="all">All</div>
+        <div class="filter-chip active" data-status="Feasibility / Pre-Dev"><span class="dot"></span>Pre-Dev</div>
+        <div class="filter-chip active" data-status="Under Construction"><span class="dot"></span>Construction</div>
+        <div class="filter-chip active" data-status="Completed"><span class="dot"></span>Completed</div>
+        <div class="filter-chip active" data-status="Dead"><span class="dot"></span>Dead</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">State</div>
+      <select class="search-input" id="state-filter" style="cursor:pointer;">
+        <option value="all">All States</option>
+      </select>
+    </div>
+
+    <div class="project-count" id="project-count">Loading...</div>
+
+    <div class="project-list-container" id="project-list"></div>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="legend">
+    <div class="legend-title">Development Status</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--status-feasibility)"></div> Feasibility / Pre-Dev</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--status-construction)"></div> Under Construction</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--status-completed)"></div> Completed</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--status-dead)"></div> Dead</div>
+    <div style="margin-top:8px; font-size:10px; color:var(--text-muted);">Larger dots = 500+ MW</div>
+  </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!-- MarkerCluster JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<!-- PapaParse for CSV -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+<script>
+// =============================================================================
+// CONFIGURATION — UPDATE THESE TWO VALUES
+// =============================================================================
+
+// 1. Your Google Sheet ID (from the URL)
+const SHEET_ID = '1joKZEnYQcdY8jLVd00gcFdwhKfid0Z1V9UahIychp_Y';
+
+// 2. The sheet/tab name (usually "Sheet1")
+const SHEET_TAB = 'Sheet1';
+
+// CSV export URL (requires sheet to be published to web)
+const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_TAB)}`;
+
+// =============================================================================
+
+// Column name mapping (matches your spreadsheet headers)
+const COL = {
+  developer: 'Developer',
+  projectName: 'Project Name',
+  endUser: 'End User',
+  latestUpdate: 'Latest Project Update',
+  updateDate: 'Latest Update Date',
+  status: 'Current Development Status',
+  announcementDate: 'Announcement Date',
+  zoningDate: 'Zoning Approval Date',
+  groundbreakingDate: 'Ground-Breaking Date',
+  completionDate: 'Project Completion Date',
+  county: 'County',
+  city: 'City',
+  state: 'State',
+  acres: 'Acres',
+  mw: 'MW',
+  mwType: 'MW Type',
+  zoning: 'Original Zoning',
+  powerProvider: 'Power Provider',
+  powerSource: 'Power Source',
+  coordinates: 'Coordinates',
+  exactCoords: 'Exact Coordinates',
+  note: 'Note',
+  sourceLink: 'Source Link',
+};
+
+// Status → color
+const STATUS_COLORS = {
+  'Feasibility / Pre-Dev': { color: '#f59e0b', class: 'feasibility', css: 'status-feasibility' },
+  'Under Construction':     { color: '#3b82f6', class: 'construction', css: 'status-construction' },
+  'Completed':              { color: '#10b981', class: 'completed', css: 'status-completed' },
+  'Dead':                   { color: '#ef4444', class: 'dead', css: 'status-dead' },
+};
+const DEFAULT_STATUS = { color: '#6b7280', class: 'unknown', css: 'status-unknown' };
+
+// State data
+let allProjects = [];
+let filteredProjects = [];
+let markers = {};
+let markerCluster;
+let map;
+let activeStatuses = new Set(['Feasibility / Pre-Dev', 'Under Construction', 'Completed', 'Dead']);
+let activeState = 'all';
+let searchQuery = '';
+
+// ── Initialize Map ───────────────────────────────────────────────────────────
+function initMap() {
+  map = L.map('map', {
+    center: [39.5, -98.5],
+    zoom: 5,
+    zoomControl: true,
+    attributionControl: true,
+  });
+
+  // CartoDB Dark Matter tiles
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // Cluster group
+  markerCluster = L.markerClusterGroup({
+    maxClusterRadius: 40,
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    zoomToBoundsOnClick: true,
+    disableClusteringAtZoom: 10,
+  });
+  map.addLayer(markerCluster);
+}
+
+// ── Load Data ────────────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const response = await fetch(CSV_URL);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const csvText = await response.text();
+
+    const parsed = Papa.parse(csvText, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: false,
+    });
+
+    allProjects = parsed.data
+      .filter(row => {
+        const coords = row[COL.coordinates];
+        return coords && coords.includes(',') && row[COL.developer];
+      })
+      .map((row, idx) => {
+        const [lat, lng] = row[COL.coordinates].split(',').map(s => parseFloat(s.trim()));
+        const mw = parseFloat(row[COL.mw]) || 0;
+        return {
+          id: idx,
+          developer: row[COL.developer] || '',
+          projectName: row[COL.projectName] || '',
+          endUser: row[COL.endUser] || '',
+          latestUpdate: row[COL.latestUpdate] || '',
+          updateDate: row[COL.updateDate] || '',
+          status: row[COL.status] || 'Feasibility / Pre-Dev',
+          announcementDate: row[COL.announcementDate] || '',
+          zoningDate: row[COL.zoningDate] || '',
+          groundbreakingDate: row[COL.groundbreakingDate] || '',
+          completionDate: row[COL.completionDate] || '',
+          county: row[COL.county] || '',
+          city: row[COL.city] || '',
+          state: row[COL.state] || '',
+          acres: row[COL.acres] || '',
+          mw: mw,
+          mwRaw: row[COL.mw] || '',
+          mwType: row[COL.mwType] || '',
+          zoning: row[COL.zoning] || '',
+          powerProvider: row[COL.powerProvider] || '',
+          powerSource: row[COL.powerSource] || '',
+          exactCoords: row[COL.exactCoords] || '',
+          note: row[COL.note] || '',
+          sourceLink: row[COL.sourceLink] || '',
+          lat, lng,
+        };
+      })
+      .filter(p => !isNaN(p.lat) && !isNaN(p.lng));
+
+    // Populate state filter
+    const states = [...new Set(allProjects.map(p => p.state).filter(Boolean))].sort();
+    const stateSelect = document.getElementById('state-filter');
+    states.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s;
+      stateSelect.appendChild(opt);
+    });
+
+    // Update header stats
+    const totalMW = allProjects.reduce((sum, p) => sum + p.mw, 0);
+    document.getElementById('stat-total').textContent = allProjects.length;
+    document.getElementById('stat-mw').textContent = totalMW >= 1000
+      ? (totalMW / 1000).toFixed(1) + ' GW'
+      : Math.round(totalMW) + ' MW';
+    document.getElementById('stat-states').textContent = states.length;
+    document.getElementById('stat-sync').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    applyFilters();
+
+    // Hide loading
+    setTimeout(() => document.getElementById('loading').classList.add('hidden'), 300);
+
+  } catch (err) {
+    console.error('Failed to load sheet data:', err);
+    document.querySelector('.loading-text').textContent =
+      'Failed to load data. Make sure the sheet is published to web.';
+    document.querySelector('.loading-spinner').style.display = 'none';
+  }
+}
+
+// ── Create Marker ────────────────────────────────────────────────────────────
+function createMarker(project) {
+  const info = STATUS_COLORS[project.status] || DEFAULT_STATUS;
+  const isLarge = project.mw >= 500;
+
+  const icon = L.divIcon({
+    className: '',
+    html: `<div class="custom-marker ${info.class}${isLarge ? ' large' : ''}"></div>`,
+    iconSize: isLarge ? [20, 20] : [14, 14],
+    iconAnchor: isLarge ? [10, 10] : [7, 7],
+  });
+
+  const marker = L.marker([project.lat, project.lng], { icon });
+
+  marker.bindPopup(() => buildPopupHTML(project), {
+    maxWidth: 340,
+    minWidth: 280,
+  });
+
+  marker.projectId = project.id;
+  return marker;
+}
+
+// ── Popup HTML ───────────────────────────────────────────────────────────────
+function buildPopupHTML(p) {
+  const info = STATUS_COLORS[p.status] || DEFAULT_STATUS;
+
+  let fields = '';
+  const addField = (label, value) => {
+    if (value) fields += `<div><div class="popup-field-label">${label}</div><div class="popup-field-value">${value}</div></div>`;
+  };
+
+  addField('Status', `<span class="${info.css}" style="padding:2px 6px;border-radius:6px;font-size:10px;">${p.status}</span>`);
+  addField('Latest Update', p.latestUpdate + (p.updateDate ? ` (${p.updateDate})` : ''));
+  addField('Capacity', p.mwRaw ? `${p.mwRaw} MW${p.mwType && p.mwType !== 'Unspecified' ? ' (' + p.mwType + ')' : ''}` : '');
+  addField('Acreage', p.acres ? `${p.acres} acres` : '');
+  if (p.endUser) addField('End User', p.endUser);
+  addField('County', p.county);
+  addField('Zoning', p.zoning);
+  addField('Power', [p.powerProvider, p.powerSource].filter(Boolean).join(' — ') || '');
+
+  // Dates
+  const dates = [];
+  if (p.announcementDate) dates.push(`Announced: ${p.announcementDate}`);
+  if (p.zoningDate) dates.push(`Zoning: ${p.zoningDate}`);
+  if (p.groundbreakingDate) dates.push(`Broke Ground: ${p.groundbreakingDate}`);
+  if (p.completionDate) dates.push(`Completed: ${p.completionDate}`);
+  if (dates.length) addField('Milestones', dates.join('<br>'));
+
+  let html = `
+    <div class="popup-content">
+      <div class="popup-developer">${p.developer}</div>
+      ${p.projectName ? `<div class="popup-project-name">${p.projectName}</div>` : ''}
+      <div class="popup-location">${[p.city, p.county ? p.county + ' County' : '', p.state].filter(Boolean).join(', ')}</div>
+      <div class="popup-grid">${fields}</div>
+      ${p.note ? `<div class="popup-note">${p.note}</div>` : ''}
+      ${p.sourceLink ? `<div class="popup-source"><a href="${p.sourceLink}" target="_blank" rel="noopener">View Source Article →</a></div>` : ''}
+    </div>
+  `;
+  return html;
+}
+
+// ── Project List Card ────────────────────────────────────────────────────────
+function buildProjectCard(p) {
+  const info = STATUS_COLORS[p.status] || DEFAULT_STATUS;
+  return `
+    <div class="project-card" data-id="${p.id}" onclick="focusProject(${p.id})">
+      <div class="project-card-header">
+        <div class="project-card-developer">${p.developer}${p.projectName ? `<br><span style="font-size:11px;color:var(--accent);font-weight:400;">${p.projectName}</span>` : ''}</div>
+        ${p.mwRaw ? `<div class="project-card-mw">${p.mwRaw} MW</div>` : ''}
+      </div>
+      <div class="project-card-location">${[p.city, p.state].filter(Boolean).join(', ')}${p.county ? ' · ' + p.county + ' Co.' : ''}</div>
+      <span class="project-card-status ${info.css}">${p.status}</span>
+    </div>
+  `;
+}
+
+// ── Focus on Project ─────────────────────────────────────────────────────────
+function focusProject(id) {
+  const project = allProjects.find(p => p.id === id);
+  if (!project) return;
+
+  map.setView([project.lat, project.lng], 12, { animate: true });
+
+  // Find and open the marker popup
+  markerCluster.eachLayer(layer => {
+    if (layer.projectId === id) {
+      // Spiderfy if needed, then open popup
+      setTimeout(() => layer.openPopup(), 300);
+    }
+  });
+
+  // Highlight card
+  document.querySelectorAll('.project-card').forEach(c => c.classList.remove('highlighted'));
+  const card = document.querySelector(`.project-card[data-id="${id}"]`);
+  if (card) {
+    card.classList.add('highlighted');
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// ── Filtering ────────────────────────────────────────────────────────────────
+function applyFilters() {
+  filteredProjects = allProjects.filter(p => {
+    // Status filter
+    if (!activeStatuses.has(p.status) && activeStatuses.size < 4) return false;
+
+    // State filter
+    if (activeState !== 'all' && p.state !== activeState) return false;
+
+    // Search
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const searchable = [p.developer, p.projectName, p.endUser, p.city, p.county, p.state, p.note].join(' ').toLowerCase();
+      if (!searchable.includes(q)) return false;
+    }
+
+    return true;
+  });
+
+  updateMap();
+  updateList();
+}
+
+function updateMap() {
+  markerCluster.clearLayers();
+
+  filteredProjects.forEach(p => {
+    const marker = createMarker(p);
+    markers[p.id] = marker;
+    markerCluster.addLayer(marker);
+  });
+}
+
+function updateList() {
+  const list = document.getElementById('project-list');
+  const sorted = [...filteredProjects].sort((a, b) => b.mw - a.mw);
+  list.innerHTML = sorted.map(buildProjectCard).join('');
+  document.getElementById('project-count').textContent =
+    `${filteredProjects.length} of ${allProjects.length} projects`;
+}
+
+// ── Event Listeners ──────────────────────────────────────────────────────────
+document.getElementById('search').addEventListener('input', (e) => {
+  searchQuery = e.target.value;
+  applyFilters();
+});
+
+document.getElementById('state-filter').addEventListener('change', (e) => {
+  activeState = e.target.value;
+  applyFilters();
+});
+
+// Status filter chips
+document.getElementById('status-filters').addEventListener('click', (e) => {
+  const chip = e.target.closest('.filter-chip');
+  if (!chip) return;
+
+  const status = chip.dataset.status;
+
+  if (status === 'all') {
+    // Toggle all
+    const allActive = activeStatuses.size === 4;
+    document.querySelectorAll('.filter-chip[data-status]').forEach(c => {
+      if (allActive) {
+        c.classList.remove('active');
+        activeStatuses.clear();
+      } else {
+        c.classList.add('active');
+      }
+    });
+    if (!allActive) {
+      activeStatuses = new Set(['Feasibility / Pre-Dev', 'Under Construction', 'Completed', 'Dead']);
+    }
+  } else {
+    chip.classList.toggle('active');
+    if (activeStatuses.has(status)) {
+      activeStatuses.delete(status);
+    } else {
+      activeStatuses.add(status);
+    }
+    // Update "All" chip
+    const allChip = document.querySelector('.filter-chip[data-status="all"]');
+    if (activeStatuses.size === 4) {
+      allChip.classList.add('active');
+    } else {
+      allChip.classList.remove('active');
+    }
+  }
+
+  applyFilters();
+});
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+initMap();
+loadData();
+</script>
+
+</body>
+</html>
