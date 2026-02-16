@@ -650,11 +650,11 @@ function initMap() {
 
   // Cluster group
   markerCluster = L.markerClusterGroup({
-    maxClusterRadius: 40,
+    maxClusterRadius: 15,
     spiderfyOnMaxZoom: true,
     showCoverageOnHover: false,
     zoomToBoundsOnClick: true,
-    disableClusteringAtZoom: 10,
+    disableClusteringAtZoom: 7,
   });
   map.addLayer(markerCluster);
 }
