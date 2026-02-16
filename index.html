@@ -664,22 +664,6 @@ async function loadData() {
   const loadingText = document.querySelector('.loading-text');
   const loadingSpinner = document.querySelector('.loading-spinner');
 
-  // Validate config
-  if (SHEET_ID === '1joKZEnYQcdY8jLVd00gcFdwhKfid0Z1V9UahIychp_Y' || !SHEET_ID) {
-    loadingSpinner.style.display = 'none';
-    loadingText.innerHTML = `
-      <strong>Sheet ID not configured.</strong><br><br>
-      Open index.html in a text editor and replace<br>
-      <code>1joKZEnYQcdY8jLVd00gcFdwhKfid0Z1V9UahIychp_Y</code> with your Sheet ID.<br><br>
-      <span style="font-size:11px;color:var(--text-muted);">
-        Find it in your sheet URL:<br>
-        docs.google.com/spreadsheets/d/<strong>{THIS_PART}</strong>/edit
-      </span>
-    `;
-    loadingText.style.textAlign = 'center';
-    return;
-  }
-
   let csvText = null;
   let lastError = null;
 
