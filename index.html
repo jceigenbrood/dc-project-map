@@ -431,7 +431,8 @@
     margin-bottom: 16px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text { font-size: 13px; color: var(--text-muted); }
+  .loading-text { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .loading-text code { background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); }
 
   /* ── Legend ──────────────────────── */
   .legend {
@@ -570,11 +571,18 @@
 // 1. Your Google Sheet ID (from the URL)
 const SHEET_ID = '1joKZEnYQcdY8jLVd00gcFdwhKfid0Z1V9UahIychp_Y';
 
-// 2. The sheet/tab name (usually "Sheet1")
+// 2. The sheet/tab name (usually "Sheet1") — check the tab at the bottom of your sheet
 const SHEET_TAB = 'Sheet1';
 
-// CSV export URL (requires sheet to be published to web)
-const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_TAB)}`;
+// 3. The GID (sheet tab number) — usually 0 for the first tab
+//    Find it in your sheet URL after #gid=
+const SHEET_GID = '0';
+
+// Two URL formats to try (some sheets work with one but not the other)
+const CSV_URLS = [
+  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${SHEET_GID}`,
+  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_TAB)}`,
+];
 
 // =============================================================================
 
@@ -653,16 +661,107 @@ function initMap() {
 
 // ── Load Data ────────────────────────────────────────────────────────────────
 async function loadData() {
+  const loadingText = document.querySelector('.loading-text');
+  const loadingSpinner = document.querySelector('.loading-spinner');
+
+  // Validate config
+  if (SHEET_ID === '1joKZEnYQcdY8jLVd00gcFdwhKfid0Z1V9UahIychp_Y' || !SHEET_ID) {
+    loadingSpinner.style.display = 'none';
+    loadingText.innerHTML = `
+      <strong>Sheet ID not configured.</strong><br><br>
+      Open index.html in a text editor and replace<br>
+      <code>1joKZEnYQcdY8jLVd00gcFdwhKfid0Z1V9UahIychp_Y</code> with your Sheet ID.<br><br>
+      <span style="font-size:11px;color:var(--text-muted);">
+        Find it in your sheet URL:<br>
+        docs.google.com/spreadsheets/d/<strong>{THIS_PART}</strong>/edit
+      </span>
+    `;
+    loadingText.style.textAlign = 'center';
+    return;
+  }
+
+  let csvText = null;
+  let lastError = null;
+
+  // Try each URL format
+  for (const url of CSV_URLS) {
+    try {
+      console.log('Trying:', url);
+      loadingText.textContent = 'Connecting to Google Sheets...';
+
+      const response = await fetch(url);
+      console.log('Response status:', response.status, response.statusText);
+
+      if (!response.ok) {
+        lastError = `HTTP ${response.status} ${response.statusText}`;
+        console.warn(`URL failed (${lastError}):`, url);
+        continue;
+      }
+
+      const text = await response.text();
+
+      // Check if we got an HTML error page instead of CSV
+      if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+        lastError = 'Got HTML instead of CSV — sheet may not be published';
+        console.warn(lastError);
+        continue;
+      }
+
+      // Check if it looks like CSV data
+      if (text.length < 50) {
+        lastError = 'Response too short — sheet may be empty';
+        console.warn(lastError);
+        continue;
+      }
+
+      csvText = text;
+      console.log(`Success! Got ${text.length} chars of CSV data`);
+      break;
+
+    } catch (err) {
+      lastError = err.message;
+      console.warn('Fetch error:', err.message);
+      continue;
+    }
+  }
+
+  if (!csvText) {
+    loadingSpinner.style.display = 'none';
+    loadingText.innerHTML = `
+      <strong>Failed to load sheet data.</strong><br><br>
+      <span style="font-size:12px;color:var(--text-secondary);">Error: ${lastError}</span><br><br>
+      <span style="font-size:11px;color:var(--text-muted);text-align:left;display:inline-block;">
+        Checklist:<br>
+        1. Open your Google Sheet<br>
+        2. File → Share → Publish to web<br>
+        3. Select your tab → Click Publish<br>
+        4. Verify SHEET_ID in index.html matches your URL<br>
+        5. Verify SHEET_GID (check #gid= in your sheet URL)
+      </span>
+    `;
+    loadingText.style.textAlign = 'center';
+    return;
+  }
+
   try {
-    const response = await fetch(CSV_URL);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const csvText = await response.text();
+    loadingText.textContent = 'Parsing project data...';
 
     const parsed = Papa.parse(csvText, {
       header: true,
       skipEmptyLines: true,
       dynamicTyping: false,
     });
+
+    console.log('Parsed headers:', parsed.meta.fields);
+    console.log('Total rows:', parsed.data.length);
+    console.log('First row sample:', parsed.data[0]);
+
+    // Check if expected columns exist
+    const missingCols = Object.values(COL).filter(c => !parsed.meta.fields.includes(c));
+    if (missingCols.length > 0) {
+      console.warn('Missing columns:', missingCols);
+      console.log('Available columns:', parsed.meta.fields);
+    }
 
     allProjects = parsed.data
       .filter(row => {
@@ -702,6 +801,15 @@ async function loadData() {
       })
       .filter(p => !isNaN(p.lat) && !isNaN(p.lng));
 
+    console.log(`Projects with valid coordinates: ${allProjects.length}`);
+    if (allProjects.length === 0) {
+      console.warn('No projects with valid coordinates found!');
+      console.log('Check that your "Coordinates" column contains "lat, lng" format values');
+      const withCoords = parsed.data.filter(r => r[COL.coordinates]);
+      console.log(`Rows with Coordinates column populated: ${withCoords.length}`);
+      if (withCoords.length > 0) console.log('Sample Coordinates value:', withCoords[0][COL.coordinates]);
+    }
+
     // Populate state filter
     const states = [...new Set(allProjects.map(p => p.state).filter(Boolean))].sort();
     const stateSelect = document.getElementById('state-filter');
@@ -727,9 +835,11 @@ async function loadData() {
     setTimeout(() => document.getElementById('loading').classList.add('hidden'), 300);
 
   } catch (err) {
-    console.error('Failed to load sheet data:', err);
-    document.querySelector('.loading-text').textContent =
-      'Failed to load data. Make sure the sheet is published to web.';
+    console.error('Failed to parse sheet data:', err);
+    document.querySelector('.loading-text').innerHTML =
+      `<strong>Failed to parse data.</strong><br><br>
+       <span style="font-size:12px;color:var(--text-secondary);">${err.message}</span><br><br>
+       <span style="font-size:11px;color:var(--text-muted);">Check browser console (F12) for details.</span>`;
     document.querySelector('.loading-spinner').style.display = 'none';
   }
 }
