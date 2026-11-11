@@ -641,12 +641,29 @@ function initMap() {
     attributionControl: true,
   });
 
-  // CartoDB Voyager tiles — clean with visible labels and boundaries
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-    subdomains: 'abcd',
-    maxZoom: 19,
-  }).addTo(map);
+  // Basemap. CARTO basemaps require a free API key since August 2026; without
+  // one, every tile shows an "API KEY REQUIRED" watermark. To use CARTO Voyager
+  // again, request a key at https://carto.com/basemaps/apikey and paste it into
+  // CARTO_API_KEY. With no key, the map uses Esri Light Gray Canvas (no key needed).
+  const CARTO_API_KEY = '';
+
+  if (CARTO_API_KEY) {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=' + CARTO_API_KEY, {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 19,
+    }).addTo(map);
+  } else {
+    const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
+    const esriOptions = {
+      attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxNativeZoom: 16,
+      maxZoom: 19,
+    };
+    // Base map, then place names and boundaries on top
+    L.tileLayer(esri + 'World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', esriOptions).addTo(map);
+    L.tileLayer(esri + 'World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', esriOptions).addTo(map);
+  }
 
   // Cluster group
   markerCluster = L.markerClusterGroup({
